@@ -19,6 +19,24 @@ const User = sequelize.define('User', {
       isEmail: true, 
     },
   },
+  phoneNumber:{
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true
+  },
+  isVerified: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+  },
+  otp: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
+  otpExpires: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
   password: {
     type: DataTypes.STRING,
     allowNull: false,

@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
 const User = require('../models/User');
+const sendEmail = require('../helpers/sendEmail');
 require('dotenv').config();
 
 
@@ -14,51 +15,95 @@ const generateToken = (user) => {
 
 exports.signup = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, phoneNumber } = req.body;
 
-    const existingUser = await User.findOne({ where: { email } });
-    if (existingUser) {
-      return res.status(400).json({ error: 'Email already in use' });
+    const existingUser = await User.findOne({ where: { [Op.or]: [{ email }, { phoneNumber }] } } );
+    if (existingUser) return res.status(400).json({ error: 'Email or Phone Number already in use' });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const otp = Math.floor(100000 + Math.random() * 900000); 
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+
+    const user = await User.create({ 
+      name, 
+      email, 
+      phoneNumber, 
+      password: hashedPassword, 
+      role: 'user', 
+      isActive: true, 
+      isVerified: false, 
+      otp, 
+      otpExpires 
+    });
+
+    try {
+      await sendEmail(email, 'Your OTP for Verification', `Your OTP is: ${otp}`);
+    } catch (emailError) {
+      console.error("Email sending failed:", emailError);
+      
+      // Hard delete the user
+      await user.destroy({ force: true });
+
+      return res.status(500).json({ error: 'Failed to send OTP. Please try again.' });
     }
 
-  
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    
-    const user = await User.create({ name, email, password: hashedPassword, role: 'user', isActive: true });
-
-    res.status(201).json({ message: 'User registered successfully', user });
+    res.status(201).json({ message: 'User registered successfully. Please verify your OTP.' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
+
+
+exports.verifyOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    const user = await User.findOne({ where: { email } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    if (user.isVerified) return res.status(400).json({ error: 'User already verified' });
+
+    if (user.otp !== otp || new Date() > user.otpExpires) {
+      return res.status(400).json({ error: 'Invalid or expired OTP' });
+    }
+
+    user.isVerified = true;
+    user.otp = null;
+    user.otpExpires = null;
+    await user.save();
+
+    res.json({ message: 'Email verified successfully. You can now log in.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
-
-   
     const user = await User.findOne({ where: { email } });
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    if (!user.isVerified) {
+      const otp = Math.floor(100000 + Math.random() * 900000);
+      user.otp = otp;
+      user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+      await user.save();
+
+      await sendEmail(email, 'Resend OTP for Verification', `Your OTP is: ${otp}`);
+
+      return res.status(403).json({ error: 'Please verify your email. A new OTP has been sent.' });
     }
 
-  
-    if (!user.isActive) {
-      return res.status(403).json({ error: 'Your account is deactivated. Contact admin for assistance.' });
-    }
-
+    if (!user.isActive) return res.status(403).json({ error: 'Your account is deactivated. Contact admin for assistance.' });
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ error: 'Invalid credentials' });
-    }
+    if (!isMatch) return res.status(400).json({ error: 'Invalid credentials' });
 
-   
     const token = generateToken(user);
-
- 
     user.lastLogin = new Date();
     await user.save();
 
@@ -68,6 +113,26 @@ exports.login = async (req, res) => {
   }
 };
 
+exports.resendOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ where: { email } });
+
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.isVerified) return res.status(400).json({ error: 'User already verified' });
+
+    const otp = Math.floor(100000 + Math.random() * 900000);
+    user.otp = otp;
+    user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    await sendEmail(email, 'Resend OTP for Verification', `Your OTP is: ${otp}`);
+
+    res.json({ message: 'OTP resent successfully.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
 
 exports.getUser = async (req, res) => {
   try {
