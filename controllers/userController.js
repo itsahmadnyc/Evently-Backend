@@ -78,7 +78,7 @@ exports.verifyOTP = async (req, res) => {
     }
 
     // Convert both OTPs to string before comparison
-    if (String(user.otp) !== String(otp)) {
+    if (Number(user.otp) !== Number(otp)) {
       console.log("OTP mismatch!");
       return res.status(400).json({ error: 'Invalid OTP' });
     }
