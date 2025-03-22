@@ -61,24 +61,49 @@ exports.verifyOTP = async (req, res) => {
     console.log("Received request body:", req.body);
 
     const user = await User.findOne({ where: { email } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
 
-    if (user.isVerified) return res.status(400).json({ error: 'User already verified' });
-
-    if (user.otp !== otp || new Date() > user.otpExpires) {
-      return res.status(400).json({ error: 'Invalid or expired OTP' });
+    if (!user) {
+      console.log("User not found");
+      return res.status(404).json({ error: 'User not found' });
     }
 
+    console.log("User found:", user);
+    console.log("Stored OTP (Type: " + typeof user.otp + "):", user.otp);
+    console.log("Received OTP (Type: " + typeof otp + "):", otp);
+    console.log("Current Time:", new Date(), " | OTP Expiry:", user.otpExpires);
+
+    if (user.isVerified) {
+      console.log("User already verified");
+      return res.status(400).json({ error: 'User already verified' });
+    }
+
+    // Convert both OTPs to string before comparison
+    if (String(user.otp) !== String(otp)) {
+      console.log("OTP mismatch!");
+      return res.status(400).json({ error: 'Invalid OTP' });
+    }
+
+    // Ensure otpExpires is compared correctly
+    if (new Date() > new Date(user.otpExpires)) {
+      console.log("OTP expired!");
+      return res.status(400).json({ error: 'Expired OTP' });
+    }
+
+    // Mark user as verified
     user.isVerified = true;
     user.otp = null;
     user.otpExpires = null;
     await user.save();
 
+    console.log("OTP verification successful!");
     res.json({ message: 'Email verified successfully. You can now log in.' });
+
   } catch (error) {
+    console.error("Error:", error);
     res.status(500).json({ error: error.message });
   }
 };
+
 
 
 exports.login = async (req, res) => {
