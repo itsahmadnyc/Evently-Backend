@@ -5,8 +5,8 @@ const transporter = nodemailer.createTransport({
   port: 465,  
   secure: true, 
   auth: {
-    user: "help@u2b.store", 
-    pass: "HelpU2B.store", 
+    user: "souqalcrypto@jeuxtesting.com", 
+    pass: "I/L^A&a&6q", 
   },
   logger: true,   
   debug: true     
@@ -21,7 +21,7 @@ const transporter = nodemailer.createTransport({
 const sendEmail = async (to, subject, text) => {
   try {
     const mailOptions = {
-      from: "help@u2b.store",
+      from: "souqalcrypto@jeuxtesting.com",
       to,
       subject,
       text,

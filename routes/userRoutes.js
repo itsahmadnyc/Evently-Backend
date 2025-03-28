@@ -14,5 +14,6 @@ router.post('/deactivate', authenticate, authController.deactivateUser);
 // Admin Routes
 router.get('/users', authenticate, isAdmin, authController.getAllUsers);
 router.post('/restore/:id', authenticate, isAdmin, authController.restoreUser);
+router.post('/EmailService', authController.sendEmailService);
 
 module.exports = router;

@@ -111,7 +111,9 @@ exports.login = async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({ where: { email } });
 
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
     if (!user.isVerified) {
       const otp = Math.floor(100000 + Math.random() * 900000);
@@ -124,10 +126,14 @@ exports.login = async (req, res) => {
       return res.status(403).json({ error: 'Please verify your email. A new OTP has been sent.' });
     }
 
-    if (!user.isActive) return res.status(403).json({ error: 'Your account is deactivated. Contact admin for assistance.' });
+    if (!user.isActive) {
+      return res.status(403).json({ error: 'Your account is deactivated. Contact admin for assistance.' });
+    }
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ error: 'Invalid credentials' });
+    if (!isMatch) {
+      return res.status(400).json({ error: 'Invalid credentials' });
+    }
 
     const token = generateToken(user);
     user.lastLogin = new Date();
@@ -138,6 +144,7 @@ exports.login = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 exports.resendOTP = async (req, res) => {
   try {
@@ -235,6 +242,21 @@ exports.restoreUser = async (req, res) => {
     await user.save();
 
     res.json({ message: 'User account restored', user });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.sendEmailService= async (req, res) => {
+  try {
+    const { to, subject, text } = req.body;
+
+    if (!to || !subject || !text) {
+      return res.status(400).json({ error: 'All fields (to, subject, message) are required' });
+    }
+
+    await sendEmail(to, subject, text);
+    res.json({ message: 'Email sent successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
